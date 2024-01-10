@@ -1177,27 +1177,8 @@ function removeOpenVPN() {
 		PROTOCOL=$(grep '^proto ' /etc/openvpn/server.conf | cut -d " " -f 2)
 
 		# Stop OpenVPN
-		if [[ $OS =~ (fedora|arch|centos|oracle) ]]; then
-			systemctl disable openvpn-server@server
-			systemctl stop openvpn-server@server
-			# Remove customised service
-			rm /etc/systemd/system/openvpn-server@.service
-		elif [[ $OS == "ubuntu" ]] && [[ $VERSION_ID == "16.04" ]]; then
-			systemctl disable openvpn
-			systemctl stop openvpn
-		else
-			systemctl disable openvpn@server
-			systemctl stop openvpn@server
-			# Remove customised service
-			rm /etc/systemd/system/openvpn\@.service
-		fi
+		killOpenVPN
 
-		# Remove the iptables rules related to the script
-		systemctl stop iptables-openvpn
-		# Cleanup
-		systemctl disable iptables-openvpn
-		rm /etc/systemd/system/iptables-openvpn.service
-		systemctl daemon-reload
 		rm /etc/iptables/add-openvpn-rules.sh
 		rm /etc/iptables/rm-openvpn-rules.sh
 
@@ -1210,20 +1191,7 @@ function removeOpenVPN() {
 			fi
 		fi
 
-		if [[ $OS =~ (debian|ubuntu) ]]; then
-			apt-get remove --purge -y openvpn
-			if [[ -e /etc/apt/sources.list.d/openvpn.list ]]; then
-				rm /etc/apt/sources.list.d/openvpn.list
-				apt-get update
-			fi
-		elif [[ $OS == 'arch' ]]; then
-			pacman --noconfirm -R openvpn
-		elif [[ $OS =~ (centos|amzn|oracle) ]]; then
-			yum remove -y openvpn
-		elif [[ $OS == 'fedora' ]]; then
-			dnf remove -y openvpn
-		fi
-
+		# TODO: we need to decide where to save ovpn... we need to mount pvc.
 		# Cleanup
 		find /home/ -maxdepth 2 -name "*.ovpn" -delete
 		find /root/ -maxdepth 1 -name "*.ovpn" -delete
@@ -1232,10 +1200,6 @@ function removeOpenVPN() {
 		rm -f /etc/sysctl.d/99-openvpn.conf
 		rm -rf /var/log/openvpn
 
-		# Unbound
-		if [[ -e /etc/unbound/openvpn.conf ]]; then
-			removeUnbound
-		fi
 		echo ""
 		echo "OpenVPN removed!"
 	else
@@ -1243,52 +1207,3 @@ function removeOpenVPN() {
 		echo "Removal aborted!"
 	fi
 }
-
-function manageMenu() {
-	echo "Welcome to OpenVPN-install!"
-	echo "The git repository is available at: https://github.com/angristan/openvpn-install"
-	echo ""
-	echo "It looks like OpenVPN is already installed."
-	echo ""
-	echo "What do you want to do?"
-	echo "   1) Add a new user"
-	echo "   2) Revoke existing user"
-	echo "   3) Remove OpenVPN"
-	echo "   4) Reconfig Certificate"
-	echo "   5) Start OpenVPN"
-	echo "   6) Exit"
-	until [[ $MENU_OPTION =~ ^[1-6]$ ]]; do
-		read -rp "Select an option [1-6]: " MENU_OPTION
-	done
-
-	case $MENU_OPTION in
-	1)
-		newClient
-		;;
-	2)
-		revokeClient
-		;;
-	3)
-		removeOpenVPN
-		;;
-	4)
-		reconfigCertificate
-		;;
-	5)
-		startOpenVPN
-		;;
-	6)
-		exit 0
-		;;
-	esac
-}
-
-# Check for root, TUN, OS...
-initialCheck
-
-# Check if OpenVPN is already installed
-if [[ -e /etc/openvpn/server.conf && ($AUTO_INSTALL != "y" || $MENU_OPTION == 4) ]]; then
-	manageMenu
-else
-	installOpenVPN
-fi
