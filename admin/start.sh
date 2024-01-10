@@ -1,3 +1,3 @@
 source ./openvpn-admin.sh
 
-killOpenVPN
+startOpenVPN
